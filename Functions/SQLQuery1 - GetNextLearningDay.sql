@@ -1,3 +1,4 @@
+
 --SQLQuery1 - GetNextLearningDay.sql
 
 USE PV_521_Import
