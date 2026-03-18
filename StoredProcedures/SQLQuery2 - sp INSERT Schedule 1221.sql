@@ -4,26 +4,6 @@ USE PV_521_Import;
 SET DATEFIRST 1;
 GO
 
---CREATE OR ALTER PROCEDURE sp_InsertSchedule1221
---		@group_name				AS		NVARCHAR(10)
---		,@discipline_1_name		AS		NVARCHAR(150)
---		,@discipline_2_name		AS		NVARCHAR(150)
---		,@constant_1_day			AS		TINYINT
---		,@constant_2_day			AS		TINYINT
---		,@alternate_day			AS		TINYINT
-	
---AS
---BEGIN
-
---	DECLARE @group_id				AS		INT			= (SELECT group_id FROM Groups WHERE group_name = @group_name);
---	DECLARE @discipline_1			AS		SMALLINT	= (SELECT discipline_id FROM Disciplines WHERE @discipline_1_name LIKE discipline_name);	
---	DECLARE @discipline_2			AS		SMALLINT	= (SELECT discipline_id FROM Disciplines WHERE @discipline_2_name LIKE discipline_name);88i
---	DECLARE @number_of_lessons_1	AS		TINYINT		= (SELECT )
-
-
-
---END
-
 
 CREATE OR ALTER PROCEDURE sp_InsertSchedule1221
 		@group_name			AS		NCHAR(10)
@@ -32,7 +12,7 @@ CREATE OR ALTER PROCEDURE sp_InsertSchedule1221
 		,@start_date		AS		DATE
 		,@constant_day		AS		TINYINT
 		,@alternate_day		AS		TINYINT
-		,@denied_day		AS		TINYINT
+		,@first_week_present AS		BIT
 AS
 BEGIN
 
@@ -46,26 +26,83 @@ BEGIN
 	
 	DECLARE @start_time			AS		TIME		= (SELECT start_time FROM Groups WHERE group_id = @group);
 	DECLARE @date				AS		DATE		= @start_date;
-	DECLARE @time				AS		TIME		= @start_time
+	DECLARE @time				AS		TIME		= @start_time;
+
+	DECLARE @previous_week_present	AS		BIT			= IIF(@first_week_present = 1,0,1);
 
 	WHILE @lesson_number < @number_of_lessons
 	BEGIN
 
 		SET @time = @start_time;
-		EXEC sp_InsertLesson  @group,@discipline, @teacher, @date, @time OUTPUT, @lesson_number OUTPUT;
-		EXEC sp_InsertLesson  @group,@discipline, @teacher, @date, @time OUTPUT, @lesson_number OUTPUT;
-		--IF DATEPART(WEEKDAY, @date) = @constant_day SET @date = DATEADD(DAY,7,@date)
-		SET @date = dbo.GetNextLearningDate (@group_name, DEFAULT);
 
-		WHILE DATEPART(WEEKDAY, @date) = @denied_day		
+		IF DATEPART(WEEKDAY, @date) = @constant_day OR (DATEPART(WEEKDAY,@date) = @alternate_day AND @previous_week_present = 0)
 		BEGIN
-		SET @date = dbo.GetNextLearningDate(@group_name,@date);
-		
-		IF DATEPART(WEEKDAY, @date) = @alternate_day 
-		AND EXISTS(SELECT lesson_id FROM Schedule WHERE [date] = DATEADD(DAY, -7, @date) AND discipline = @discipline)
-			SET @date = dbo.GetNextLearningDate(@group_name, @date);
+		EXEC sp_InsertLesson  @group,@discipline, @teacher, @date, @time OUTPUT, @lesson_number OUTPUT;
+		EXEC sp_InsertLesson  @group,@discipline, @teacher, @date, @time OUTPUT, @lesson_number OUTPUT;
 		END
+		--IF DATEPART(WEEKDAY, @date) = @constant_day SET @date = DATEADD(DAY,7,@date)
 
-	END
+
+
+		
+		--IF DATEPART(WEEKDAY, @date) = @alternate_day 
+		--AND EXISTS(SELECT lesson_id FROM Schedule WHERE [date] = DATEADD(DAY, -7, @date) AND discipline = @discipline)
+		--	SET @date = dbo.GetNextLearningDate(@group_name, @date);
+
+			IF DATEPART(WEEKDAY, @date) = @alternate_day
+				SET @previous_week_present = IIF(@previous_week_present = 1,0,1);
+
+			SET @date = dbo.GetNextLearningDate(@group_name,@date);
+			
+		
+
+
+	END 
 
 END
+
+
+
+
+---------------------------------------------Домашняя версия---------------------------------
+
+--CREATE OR ALTER PROCEDURE sp_InsertSchedule1221
+--		@group_name			AS		NCHAR(10)
+--		,@discipline_1_name	AS		NVARCHAR(150)
+--		,@discipline_2_name AS		NVARCHAR(150)
+--		,@teacher_1_name	AS		NVARCHAR(50)
+--		,@teacher_2_name	AS		NVARCHAR(50)
+--		,@start_date		AS		DATE
+		
+--AS
+--BEGIN
+
+--	DECLARE @group					AS		INT			=	(SELECT group_id FROM Groups WHERE group_name = @group_name);
+
+--	DECLARE @discipline_1			AS		SMALLINT	=	(SELECT discipline_id FROM Disciplines WHERE discipline_name LIKE @discipline_1_name);
+--	DECLARE @discipline_2			AS		SMALLINT	=	(SELECT discipline_id FROM Disciplines WHERE discipline_name LIKE @discipline_2_name);
+
+--	DECLARE @number_of_lessons	AS		TINYINT		=	
+--	IIF
+--	(
+--	(SELECT number_of_lessons FROM Disciplines WHERE discipline_name LIKE @discipline_1_name) < (SELECT number_of_lessons FROM Disciplines WHERE discipline_name LIKE @discipline_2_name)
+--	,(SELECT number_of_lessons FROM Disciplines WHERE discipline_name LIKE @discipline_1_name)
+--	,(SELECT number_of_lessons FROM Disciplines WHERE discipline_name LIKE @discipline_2_name)
+--	);
+
+--	DECLARE @lesson_number_1		AS		TINYINT		= (SELECT COUNT(lesson_id) FROM Schedule WHERE discipline = @discipline_1_name AND @group = [group]);
+--	DECLARE @lesson_number_2		AS		TINYINT		= (SELECT COUNT(lesson_id) FROM Schedule WHERE discipline = @discipline_2_name AND @group = [group]);
+
+--	DECLARE @teacher_1				AS		SMALLINT	= (SELECT teacher_id FROM Teachers WHERE last_name LIKE @teacher_1_name OR first_name LIKE @teacher_1_name);
+--	DECLARE @teacher_2				AS		SMALLINT	= (SELECT teacher_id FROM Teachers WHERE last_name LIKE @teacher_2_name OR first_name LIKE @teacher_2_name);
+
+--	IF @start_date IS NULL SET @start_date = (SELECT [start_date] FROM Groups WHERE group_id = @group);
+	
+--	DECLARE @start_time				AS		TIME		= (SELECT start_time FROM Groups WHERE group_id = @group);
+--	DECLARE @date					AS		DATE		= @start_date;
+--	DECLARE @time					AS		TIME		= @start_time;
+
+
+
+
+--END
